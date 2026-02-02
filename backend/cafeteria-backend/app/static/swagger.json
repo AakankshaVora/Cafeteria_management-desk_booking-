@@ -1,0 +1,160 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Cafeteria Backend API",
+    "description": "APIs for Cafeteria Management System",
+    "version": "1.0.0"
+  },
+  "host": "127.0.0.1:5001",
+  "basePath": "/",
+  "schemes": ["http"],
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header",
+      "description": "JWT Authorization header. Example: Bearer <token>"
+    }
+  },
+
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Login",
+        "consumes": ["application/json"],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["email", "password"],
+              "properties": {
+                "email": { "type": "string" },
+                "password": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Login successful" }
+        }
+      }
+    },
+
+    "/menu": {
+      "get": {
+        "summary": "Get menu items",
+        "responses": {
+          "200": { "description": "Menu list" }
+        }
+      },
+      "post": {
+        "summary": "Add menu item (Cafeteria Admin)",
+        "security": [{ "Bearer": [] }],
+        "consumes": ["application/json"],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["name", "price"],
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "price": { "type": "number" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": { "description": "Menu item created" }
+        }
+      }
+    },
+
+    "/orders": {
+      "post": {
+        "summary": "Place order (Employee)",
+        "security": [{ "Bearer": [] }],
+        "consumes": ["application/json"],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "menu_item_id": { "type": "integer" },
+                      "quantity": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": { "description": "Order placed" }
+        }
+      },
+      "get": {
+        "summary": "Get all orders (Admin)",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": { "description": "Orders list" }
+        }
+      }
+    },
+
+    "/orders/my": {
+      "get": {
+        "summary": "Get my orders (Employee)",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": { "description": "My orders" }
+        }
+      }
+    },
+
+    "/desks": {
+      "get": {
+        "summary": "Get desks",
+        "responses": {
+          "200": { "description": "Desk list" }
+        }
+      }
+    },
+
+    "/desk-bookings": {
+      "post": {
+        "summary": "Book desk (Employee)",
+        "security": [{ "Bearer": [] }],
+        "consumes": ["application/json"],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["desk_id", "booking_date"],
+              "properties": {
+                "desk_id": { "type": "integer" },
+                "booking_date": { "type": "string", "example": "2026-02-01" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": { "description": "Desk booked" }
+        }
+      }
+    }
+  }
+}
