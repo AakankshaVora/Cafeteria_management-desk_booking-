@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Topbar from "../../components/Topbar";
 import { toast } from "react-toastify";
+import DeskLayout from "../../components/DeskLayout";
 import { StatCard } from "../../components/ui/Card";
 import { TableContainer, Thead, Tbody, Tr, Th, Td } from "../../components/ui/Table";
 import Button from "../../components/ui/Button";
@@ -11,7 +12,8 @@ import {
   MonitorCheck,
   MonitorX,
   MonitorDot,
-  Plus
+  Plus,
+  XCircle
 } from "lucide-react";
 import api from "../../services/api";
 
@@ -22,11 +24,15 @@ const DeskDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total_desks: 0, available_today: 0, booked_today: 0 });
 
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [fromTime, setFromTime] = useState("");
+  const [toTime, setToTime] = useState("");
+
   useEffect(() => {
     fetchStats();
     fetchDesks();
     fetchBookings();
-  }, []);
+  }, [selectedDate, fromTime, toTime]);
 
   const fetchStats = async () => {
     try {
@@ -39,12 +45,20 @@ const DeskDashboard = () => {
 
   const fetchDesks = async () => {
     try {
-      const response = await api.get("/desks");
+      let query = `?date=${selectedDate}`;
+      if (fromTime) query += `&start_time=${fromTime}`;
+      if (toTime) query += `&end_time=${toTime}`;
+
+      const response = await api.get(`/desks${query}`);
       // Map API response
       const mappedDesks = response.data.map((d) => ({
         db_id: d.id, // Primary Key for API calls
         id: d.desk_code, // Display code
+        desk_code: d.desk_code, // Required by DeskLayout
         location: d.location,
+        block: d.block,
+        row: d.row,
+        col: d.col,
         status: d.status.charAt(0).toUpperCase() + d.status.slice(1),
         bookedBy: d.booked_by || "-", // Kept in state if needed, but removed from UI
         date: d.date,
@@ -159,18 +173,84 @@ const DeskDashboard = () => {
               <StatCard title="Booked Today" value={bookedToday} icon={MonitorX} color="purple" />
             </div>
 
+            {/* LAYOUT PREVIEW */}
+            <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-lg border border-white/50">
+              <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h3 className="text-xl font-bold text-gray-800">Live Desk Layout</h3>
+                <div className="flex gap-4 items-center bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="border-none bg-transparent focus:ring-0"
+                  />
+                  <div className="h-6 w-px bg-gray-200"></div>
+                  <Input
+                    type="time"
+                    value={fromTime}
+                    onChange={(e) => setFromTime(e.target.value)}
+                    className="border-none bg-transparent focus:ring-0"
+                  />
+                  <span className="text-gray-400">-</span>
+                  <Input
+                    type="time"
+                    value={toTime}
+                    onChange={(e) => setToTime(e.target.value)}
+                    className="border-none bg-transparent focus:ring-0"
+                  />
+                </div>
+              </div>
+              {loading ? <p>Loading...</p> : (
+                <DeskLayout
+                  desks={desks}
+                  bookings={bookings
+                    .filter(b => {
+                      if (b.booking_date !== selectedDate) return false;
+                      if (fromTime && toTime) {
+                        return b.start_time < toTime && b.end_time > fromTime;
+                      }
+                      return true;
+                    })
+                    .reduce((acc, b) => {
+                      // Map desk_id (code) to booking object
+                      if (b.status === 'booked') {
+                        acc[b.desk_id] = b;
+                      }
+                      return acc;
+                    }, {})}
+                  isAdmin={true}
+                  onCancelBooking={async (bookingId) => {
+                    if (window.confirm("Are you sure you want to cancel this booking?")) {
+                      try {
+                        await api.put(`/desk-bookings/${bookingId}/cancel`);
+                        toast.success("Booking cancelled");
+                        fetchBookings();
+                        fetchDesks();
+                        fetchStats();
+                      } catch (e) {
+                        toast.error("Failed to cancel");
+                      }
+                    }
+                  }}
+                />
+              )}
+            </div>
+
             {/* RECENT BOOKINGS */}
             <TableContainer title="Recent Desk Bookings">
               <Thead>
                 <Th>Desk ID</Th>
+                <Th>User</Th>
                 <Th>Date</Th>
                 <Th>Time</Th>
                 <Th>Status</Th>
+                <Th>Action</Th>
               </Thead>
               <Tbody>
                 {bookings.map((booking) => (
                   <Tr key={booking.id}>
                     <Td className="font-bold text-gray-800">{booking.desk_id}</Td>
+                    <Td className="text-gray-600">{booking.user_name}</Td>
                     <Td className="text-gray-500">{booking.booking_date}</Td>
                     <Td className="text-gray-500">{booking.start_time} - {booking.end_time}</Td>
                     <Td>
@@ -179,11 +259,40 @@ const DeskDashboard = () => {
                         {booking.status}
                       </span>
                     </Td>
+                    <Td>
+                      {booking.status === 'booked' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            // Re-use logic or call API directly
+                            const handleCancel = async () => {
+                              if (window.confirm("Are you sure you want to cancel this booking?")) {
+                                try {
+                                  await api.put(`/desk-bookings/${booking.id}/cancel`);
+                                  toast.success("Booking cancelled");
+                                  fetchBookings();
+                                  fetchDesks();
+                                  fetchStats();
+                                } catch (e) {
+                                  toast.error("Failed to cancel");
+                                }
+                              }
+                            };
+                            handleCancel();
+                          }}
+                          icon={XCircle}
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </Td>
                   </Tr>
                 ))}
                 {bookings.length === 0 && (
                   <Tr>
-                    <td colSpan="4" className="px-6 py-8 text-center text-gray-500 italic">
+                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500 italic">
                       No bookings found.
                     </td>
                   </Tr>

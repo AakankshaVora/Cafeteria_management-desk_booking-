@@ -11,6 +11,7 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     total_amount = Column(Float, nullable=False)
+    scheduled_time = Column(String, nullable=True) # ISO format string or similar
     status = Column(String(50), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
 

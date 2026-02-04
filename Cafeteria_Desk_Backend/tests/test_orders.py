@@ -14,6 +14,45 @@ def test_place_order(client, auth_headers, db_session):
     assert resp.status_code == 201
     assert resp.json["total_amount"] == 100
 
+def test_scheduled_order(client, auth_headers, db_session):
+    """Test scheduled order"""
+    from app.models.menu_item import MenuItem
+    from datetime import datetime, timedelta
+    
+    item = MenuItem(name="Pizza", price=200, is_available=True)
+    db_session.add(item)
+    db_session.commit()
+    
+    headers = auth_headers("employee")
+    future_time = (datetime.now() + timedelta(hours=2)).isoformat()
+    
+    resp = client.post("/orders", json={
+        "items": [{"item_id": item.id, "quantity": 1}],
+        "scheduled_time": future_time
+    }, headers=headers)
+    
+    assert resp.status_code == 201
+
+def test_past_scheduled_order_fails(client, auth_headers, db_session):
+    """Test past scheduled order fails"""
+    from app.models.menu_item import MenuItem
+    from datetime import datetime, timedelta
+    
+    item = MenuItem(name="Burger", price=100, is_available=True)
+    db_session.add(item)
+    db_session.commit()
+    
+    headers = auth_headers("employee")
+    past_time = (datetime.now() - timedelta(hours=2)).isoformat()
+    
+    resp = client.post("/orders", json={
+        "items": [{"item_id": item.id, "quantity": 1}],
+        "scheduled_time": past_time
+    }, headers=headers)
+    
+    assert resp.status_code == 400
+    assert "time cannot be in the past" in resp.json["message"]
+
 
 def test_update_order_status(client, auth_headers, db_session):
     """Cafeteria Admin completes order"""

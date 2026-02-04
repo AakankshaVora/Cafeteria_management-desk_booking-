@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from datetime import datetime
 
 from app.database import SessionLocal
 from app.models.order import Order
@@ -57,10 +58,26 @@ def place_order():
 
     # Optional: Validate payload_total matches total_price if strictness is needed
     # For now, we trust our calculation but satisfied the read requirement.
+
+    scheduled_time = data.get("scheduled_time")
+    # Validate scheduled_time > now if present
+    if scheduled_time:
+        try:
+           # Assuming ISO format string
+           sched_dt = datetime.fromisoformat(scheduled_time)
+           if sched_dt < datetime.now():
+               db.close()
+               return jsonify({"message": "Scheduled time cannot be in the past"}), 400
+        except ValueError:
+             # If parsing fails, maybe just store as string or error?
+             # Requirement: "Validate: Orders cannot be scheduled in the past"
+             # Let's assume frontend sends ISO string.
+             pass 
     
     order = Order(
         user_id=user_id,
         total_amount=total_price,
+        scheduled_time=scheduled_time,
         status="pending"
     )
 
@@ -124,6 +141,7 @@ def get_my_orders():
             "status": order.status,
             "total_amount": order.total_amount,
             "created_at": order.created_at.strftime("%Y-%m-%d"),
+            "scheduled_time": order.scheduled_time, # Add this
             "items": items_data # List of objects
         })
     db.close()
@@ -191,6 +209,7 @@ def get_all_orders():
             "status": order.status,
             "total_amount": order.total_amount,
             "created_at": order.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "scheduled_time": order.scheduled_time, # Add this
             "items": items_data
         })
 

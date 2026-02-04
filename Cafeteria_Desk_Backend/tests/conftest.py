@@ -8,7 +8,9 @@ from app.models.user import User
 from werkzeug.security import generate_password_hash
 from flask_jwt_extended import create_access_token
 
-TEST_DATABASE_URL = "postgresql://postgres:newpassword123@localhost:5432/test_cafeteria_db"
+import os
+
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:newpassword123@localhost:5432/test_cafeteria_db")
 
 @pytest.fixture(scope='session')
 def engine():
@@ -124,10 +126,11 @@ def test_users(db_session):
     return users
 
 @pytest.fixture
-def auth_headers(test_users):
+def auth_headers(app, test_users):
     def _get_headers(role):
-        user = test_users[role]
-        # Ensure user.id is available (flush ensured it)
-        token = create_access_token(identity=str(user.id), additional_claims={"role": user.role})
-        return {"Authorization": f"Bearer {token}"}
+        with app.app_context():
+            user = test_users[role]
+            # Ensure user.id is available (flush ensured it)
+            token = create_access_token(identity=str(user.id), additional_claims={"role": user.role})
+            return {"Authorization": f"Bearer {token}"}
     return _get_headers

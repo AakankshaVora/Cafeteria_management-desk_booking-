@@ -31,6 +31,13 @@ def book_desk():
     booking_date = data.get("booking_date")
     start_time = data.get("start_time", "09:00") # Default if missing
     end_time = data.get("end_time", "18:00")     # Default if missing
+    business_start = "09:00"
+    business_end = "19:00"
+    if start_time < business_start or end_time > business_end:
+        return jsonify({"message": f"Bookings only allowed between {business_start} and {business_end}"}), 400
+
+    if start_time >= end_time:
+        return jsonify({"message": "End time must be after start time"}), 400
 
     if not desk_id or not booking_date:
         return jsonify({"message": "desk_id and booking_date required"}), 400
@@ -50,12 +57,52 @@ def book_desk():
         db.close()
         return jsonify({"message": f"Desk is currently {desk.status} and cannot be booked"}), 400
 
-    # CHECK AVAILABILITY
+    # VALIDATE DATE (Can't book past dates)
+    today = datetime.now().date()
+    if booking_date < today:
+        db.close()
+        return jsonify({"message": "Cannot book desks for past dates"}), 400
+
+    # CHECK MAX 2 BOOKINGS PER DAY
+    daily_bookings_count = db.query(DeskBooking).filter(
+        DeskBooking.user_id == user_id,
+        DeskBooking.booking_date == booking_date,
+        DeskBooking.status != 'cancelled'
+    ).count()
+
+    if daily_bookings_count >= 2:
+        db.close()
+        return jsonify({"message": "You can only book up to 2 desks per day"}), 400
+
+    # CHECK OVERLAP (Time-Aware)
+    # A booking overlaps if: (StartA < EndB) and (EndA > StartB)
     existing_booking = db.query(DeskBooking).filter(
         DeskBooking.desk_id == desk_id,
         DeskBooking.booking_date == booking_date,
-        DeskBooking.status != 'cancelled'
+        DeskBooking.status != 'cancelled',
+        DeskBooking.start_time < end_time,
+        DeskBooking.end_time > start_time
     ).first()
+
+    # CHECK OVERLAP (User cannot have another booking overlapping in time)
+    # Simple check: User cannot have ANY other booking at the exact same start-end time?
+    # Or strict overlap check: (StartA <= EndB) and (EndA >= StartB)
+    # Be careful with string comparisons of times ("09:00" vs "18:00").
+    # For simplicity/safety in this constraints-based env, we can just block if they have *any* booking on that day?
+    # But requirements say "PREVENT MULTIPLE DESKS IN SAME TIME SPAN".
+    # Let's do strict overlap check.
+    user_bookings_today = db.query(DeskBooking).filter(
+        DeskBooking.user_id == user_id,
+        DeskBooking.booking_date == booking_date,
+        DeskBooking.status != 'cancelled'
+    ).all()
+
+    for ub in user_bookings_today:
+        # Check overlap
+        # ub.start_time <= end_time AND ub.end_time >= start_time
+        if ub.start_time < end_time and ub.end_time > start_time:
+             db.close()
+             return jsonify({"message": f"You already have a booking from {ub.start_time} to {ub.end_time} which overlaps."}), 400
 
     if existing_booking:
         db.close()
@@ -100,6 +147,7 @@ def get_my_bookings():
         result.append({
             "id": booking.id,
             "desk_id": booking.desk_id,
+            "desk_code": booking.desk.desk_code if booking.desk else "N/A", # Return code for display
             "location": booking.desk.location if booking.desk else "N/A", # Added location
             "booking_date": booking.booking_date.strftime("%Y-%m-%d"),
             "start_time": booking.start_time or "09:00", # Use DB val or default
@@ -154,8 +202,8 @@ def cancel_booking(id):
         db.close()
         return jsonify({"message": "Booking not found"}), 404
 
-    # Allow cancellation if user owns it OR is admin
-    if role != "cafeteria_admin" and booking.user_id != user_id:
+    # Allow cancellation if user owns it OR is admin (cafeteria_admin OR desk_admin)
+    if role not in ["cafeteria_admin", "desk_admin"] and booking.user_id != user_id:
         db.close()
         return jsonify({"message": "Access denied"}), 403
 
@@ -181,8 +229,8 @@ def cancel_booking_status(id):
         db.close()
         return jsonify({"message": "Booking not found"}), 404
 
-    # Allow cancellation if user owns it OR is admin
-    if role != "cafeteria_admin" and booking.user_id != user_id:
+    # Allow cancellation if user owns it OR is admin (cafeteria_admin OR desk_admin)
+    if role not in ["cafeteria_admin", "desk_admin"] and booking.user_id != user_id:
         db.close()
         return jsonify({"message": "Access denied"}), 403
 

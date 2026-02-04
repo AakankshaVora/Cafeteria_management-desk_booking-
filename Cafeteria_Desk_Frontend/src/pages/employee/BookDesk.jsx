@@ -8,6 +8,7 @@ import { TableContainer, Thead, Tbody, Tr, Th, Td } from "../../components/ui/Ta
 import Modal from "../../components/ui/Modal";
 import { Calendar, Clock, MapPin, ArrowLeft } from "lucide-react";
 import api from "../../services/api";
+import DeskLayout from "../../components/DeskLayout";
 
 const BookDesk = () => {
   const navigate = useNavigate();
@@ -27,16 +28,27 @@ const BookDesk = () => {
     fetchDesks(today);
   }, []);
 
-  const fetchDesks = async (searchDate = "") => {
+  const fetchDesks = async (searchDate = "", start = "", end = "") => {
     setLoading(true);
     try {
-      const query = searchDate ? `?date=${searchDate}` : "";
+      let query = "";
+      const params = [];
+      if (searchDate) params.push(`date=${searchDate}`);
+      if (start) params.push(`start_time=${start}`);
+      if (end) params.push(`end_time=${end}`);
+
+      if (params.length > 0) query = `?${params.join("&")}`;
+
       const response = await api.get(`/desks${query}`);
 
       const mappedDesks = response.data.map(d => ({
         originalId: d.id, // Keep backend ID for booking
         id: d.desk_code,  // Display code
+        desk_code: d.desk_code, // Required by DeskLayout
         location: d.location,
+        block: d.block, // Add block info
+        row: d.row,
+        col: d.col,
         status: d.status.charAt(0).toUpperCase() + d.status.slice(1), // Capitalize
         isAvailable: d.status === 'available'
       }));
@@ -50,10 +62,11 @@ const BookDesk = () => {
 
   const handleSearch = () => {
     if (!date) {
-      fetchDesks(); // Defaults to today if empty, or we could require date
-      // toast.info("Showing availability for today");
+      // Default to "today" if no date selected, but logic might vary
+      // fetchDesks(); 
+      toast.info("Please select a date, and optionally a time range.");
     } else {
-      fetchDesks(date);
+      fetchDesks(date, fromTime, toTime);
     }
   };
 
@@ -111,18 +124,23 @@ const BookDesk = () => {
           <Input
             label="Date"
             type="date"
+            min={new Date().toISOString().split('T')[0]} // Disable past dates
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
           <Input
             label="From Time"
             type="time"
+            min="09:00"
+            max="19:00"
             value={fromTime}
             onChange={(e) => setFromTime(e.target.value)}
           />
           <Input
             label="To Time"
             type="time"
+            min="09:00"
+            max="19:00"
             value={toTime}
             onChange={(e) => setToTime(e.target.value)}
           />
@@ -138,52 +156,23 @@ const BookDesk = () => {
         </div>
       </div>
 
-      {/* Desk Table */}
-      <TableContainer title="Available Desks">
-        <Thead>
-          <Th>Desk ID</Th>
-          <Th>Location</Th>
-          <Th>Date</Th>
-          <Th>Time Slot</Th>
-          <Th>Status</Th>
-          <Th>Action</Th>
-        </Thead>
-        <Tbody>
-          {loading ? (
-            <Tr><Td colSpan="6" className="text-center text-gray-500">Loading desks...</Td></Tr>
-          ) : (
-            desks.map((desk) => (
-              <Tr key={desk.originalId}>
-                <Td className="font-bold text-gray-800">{desk.id}</Td>
-                <Td className="flex items-center gap-2 text-gray-600">
-                  <MapPin size={16} className="text-gray-400" /> {desk.location}
-                </Td>
-                <Td className="text-gray-600">{date || "—"}</Td>
-                <Td className="text-gray-600">{fromTime && toTime ? `${fromTime} - ${toTime}` : "—"}</Td>
-                <Td>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${desk.isAvailable ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-                      }`}
-                  >
-                    {desk.status}
-                  </span>
-                </Td>
-                <Td>
-                  {desk.isAvailable ? (
-                    <Button size="sm" onClick={() => handleBookClick(desk)}>
-                      Book Now
-                    </Button>
-                  ) : (
-                    <span className="text-gray-400 text-sm font-medium italic pl-2">
-                      Unavailable
-                    </span>
-                  )}
-                </Td>
-              </Tr>
-            ))
-          )}
-        </Tbody>
-      </TableContainer>
+      {/* Desk Layout View */}
+      <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-lg border border-white/50">
+        <h3 className="text-xl font-bold text-gray-800 mb-6">Select a Desk</h3>
+        {loading ? (
+          <div className="text-center py-10 text-gray-500">Loading desk layout...</div>
+        ) : (
+          <DeskLayout
+            desks={desks}
+            bookings={desks.reduce((acc, desk) => {
+              if (desk.status === 'Booked') acc[desk.id] = true;
+              return acc;
+            }, {})}
+            onSelectDesk={(desk) => handleBookClick(desk)}
+            selectedDeskId={selectedDesk?.id}
+          />
+        )}
+      </div>
 
       {/* Confirm Booking Modal */}
       <Modal
@@ -194,11 +183,11 @@ const BookDesk = () => {
         {selectedDesk && (
           <div className="space-y-6">
             <div className="bg-indigo-50 p-6 rounded-2xl flex items-center gap-4">
-              <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-2xl">
-                {selectedDesk.id}
+              <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-lg">
+                {selectedDesk.desk_code || selectedDesk.id}
               </div>
               <div>
-                <h4 className="font-bold text-gray-800 text-lg">Desk {selectedDesk.id}</h4>
+                <h4 className="font-bold text-gray-800 text-lg">Desk {selectedDesk.desk_code || selectedDesk.id}</h4>
                 <p className="text-gray-600">{selectedDesk.location}</p>
               </div>
             </div>

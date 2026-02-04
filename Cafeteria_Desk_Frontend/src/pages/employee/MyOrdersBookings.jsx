@@ -13,7 +13,8 @@ import {
   Eye,
   Calendar,
   MapPin,
-  Receipt
+  Receipt,
+  Clock
 } from "lucide-react";
 import api from "../../services/api";
 
@@ -200,7 +201,9 @@ const MyOrdersBookings = () => {
               {deskBookings.map((d) => (
                 <Tr key={d.id}>
                   <Td className="text-gray-600">{d.booking_date}</Td>
-                  <Td className="font-bold text-gray-800">{d.desk_id}</Td>
+                  <Td className="font-bold text-gray-800">
+                    {d.desk_code || d.desk_id}
+                  </Td>
                   <Td className="text-gray-600">{d.location || "N/A"}</Td>
                   <Td>
                     <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
@@ -261,6 +264,14 @@ const MyOrdersBookings = () => {
                     <span className="text-gray-500 font-medium">Status</span>
                     <span className={`font-bold ${viewData.status === "completed" ? "text-green-600" : "text-orange-600"}`}>{viewData.status}</span>
                   </div>
+                  {viewData.scheduled_time && (
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500 font-medium">Scheduled For</span>
+                      <span className="text-indigo-600 font-bold">
+                        {new Date(viewData.scheduled_time).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <span className="block text-gray-500 font-medium mb-2">Items</span>
                     <div className="flex flex-wrap gap-2">
@@ -276,52 +287,57 @@ const MyOrdersBookings = () => {
               </>
             ) : (
               <>
-                <div className="flex items-center gap-4 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                <div className="flex items-center gap-4 bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6">
                   <div className="bg-indigo-100 p-3 rounded-lg text-indigo-600">
                     <Armchair size={24} />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 font-medium uppercase tracking-wide">Desk ID</p>
-                    <h3 className="text-2xl font-bold text-gray-800">{viewData.desk_id}</h3>
+                    <h3 className="text-2xl font-bold text-gray-800">{viewData.desk_code || viewData.desk_id}</h3>
+                  </div>
+                  <div className="ml-auto">
+                    <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wide border ${viewData.status === 'booked'
+                      ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                      : viewData.status === 'cancelled'
+                        ? 'bg-red-50 text-red-600 border-red-100'
+                        : 'bg-gray-100 text-gray-600 border-gray-200'
+                      }`}>
+                      {viewData.status}
+                    </span>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="text-gray-400" size={20} />
-                    <span className="text-gray-500 w-20 font-medium">Date:</span>
-                    <span className="text-gray-800 font-semibold">{viewData.booking_date}</span>
-                  </div>
-                  <span className="text-gray-500 w-20 font-medium">Status:</span>
-                  <span className="text-indigo-600 font-bold">{viewData.status}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <MapPin className="text-gray-400" size={20} />
-                  <span className="text-gray-500 w-20 font-medium">Location:</span>
-                  <span className="text-gray-800 font-semibold">{viewData.location || "N/A"}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 flex items-center justify-center text-gray-400">
-                    🕒
-                  </div>
-                  <span className="text-gray-500 w-20 font-medium">Time:</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-500 w-20 font-medium">Status:</span>
-                    <span className="text-indigo-600 font-bold">{viewData.status}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <MapPin className="text-gray-400" size={20} />
-                    <span className="text-gray-500 w-20 font-medium">Location:</span>
-                    <span className="text-gray-800 font-semibold">{viewData.location || "N/A"}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 flex items-center justify-center text-gray-400">
-                      🕒
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-4">
+                    <div className="bg-white p-2 rounded-lg text-gray-400 shadow-sm border border-gray-100">
+                      <Calendar size={20} />
                     </div>
-                    <span className="text-gray-500 w-20 font-medium">Time:</span>
-                    <span className="text-gray-800 font-semibold">
-                      {viewData.start_time || "09:00"} - {viewData.end_time || "18:00"}
-                    </span>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium uppercase">Date</p>
+                      <p className="text-gray-800 font-semibold">{viewData.booking_date}</p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-4">
+                    <div className="bg-white p-2 rounded-lg text-gray-400 shadow-sm border border-gray-100">
+                      <Clock size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium uppercase">Time</p>
+                      <p className="text-gray-800 font-semibold">
+                        {viewData.start_time || "09:00"} - {viewData.end_time || "18:00"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center gap-4 md:col-span-2">
+                    <div className="bg-white p-2 rounded-lg text-gray-400 shadow-sm border border-gray-100">
+                      <MapPin size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium uppercase">Location</p>
+                      <p className="text-gray-800 font-semibold">{viewData.location || "N/A"}</p>
+                    </div>
                   </div>
                 </div>
               </>

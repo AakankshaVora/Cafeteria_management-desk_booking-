@@ -42,7 +42,8 @@ const Orders = () => {
         datetime: new Date(order.created_at).toLocaleDateString(),
         items: order.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
         total: order.total_amount,
-        status: order.status.charAt(0).toUpperCase() + order.status.slice(1) // Capitalize
+        status: order.status.charAt(0).toUpperCase() + order.status.slice(1), // Capitalize
+        scheduledTime: order.scheduled_time // Add this
       }));
       setOrders(mappedOrders);
     } catch (error) {
@@ -115,6 +116,7 @@ const Orders = () => {
             <Th>Date</Th>
             <Th>Items Ordered</Th>
             <Th>Total (₹)</Th>
+            <Th>Scheduled</Th>
             <Th>Status</Th>
             <Th>Actions</Th>
           </Thead>
@@ -128,6 +130,9 @@ const Orders = () => {
                   {order.items.map((i) => i.name).join(", ")}
                 </Td>
                 <Td className="font-semibold text-gray-800">{order.total}</Td>
+                <Td className="text-gray-500">
+                  {order.scheduledTime ? new Date(order.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
+                </Td>
                 <Td>
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${order.status === "Pending"
@@ -199,6 +204,14 @@ const Orders = () => {
                   <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Date</p>
                   <p className="text-gray-600">{selectedOrder.datetime}</p>
                 </div>
+                {selectedOrder.scheduledTime && (
+                  <div>
+                    <p className="text-xs text-indigo-400 uppercase font-bold tracking-wider mb-1">Scheduled For</p>
+                    <p className="text-indigo-700 font-bold">
+                      {new Date(selectedOrder.scheduledTime).toLocaleString()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Items Table */}

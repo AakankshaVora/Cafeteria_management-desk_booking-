@@ -51,6 +51,9 @@ def get_desks():
     
     # Get date from query param, default to today
     date_str = request.args.get("date")
+    start_time_str = request.args.get("start_time")
+    end_time_str = request.args.get("end_time")
+
     if date_str:
         try:
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -60,13 +63,19 @@ def get_desks():
         target_date = datetime.now().date()
 
     # Get bookings for the target date
-    bookings_on_date = db.query(DeskBooking).filter(
+    bookings_query = db.query(DeskBooking).filter(
         DeskBooking.booking_date == target_date,
         DeskBooking.status != 'cancelled'
-    ).all()
+    )
     
-    # Create a map of desk_id -> booking
-    booking_map = {b.desk_id: b for b in bookings_on_date}
+    all_bookings = bookings_query.all()
+    
+    # Create a map of desk_id -> list of bookings
+    booking_map = {}
+    for b in all_bookings:
+        if b.desk_id not in booking_map:
+            booking_map[b.desk_id] = []
+        booking_map[b.desk_id].append(b)
 
     result = []
     for desk in desks:
@@ -76,19 +85,43 @@ def get_desks():
         start_time = "-"
         end_time = "-"
         
-        # Override if booked on target date
+        # Check availability
         # Only override if the desk is nominally available (not maintenance)
         if status == "available" and desk.id in booking_map:
-            status = "Booked"
-            booking = booking_map[desk.id]
-            booked_by = booking.user.name
-            start_time = booking.start_time
-            end_time = booking.end_time
+            # Check for conflict
+            is_conflict = False
+            relevant_booking = None
+            
+            for b in booking_map[desk.id]:
+                # If times are provided, check for overlap
+                if start_time_str and end_time_str:
+                     # Overlap: (StartA < EndB) and (EndA > StartB)
+                     if b.start_time < end_time_str and b.end_time > start_time_str:
+                         is_conflict = True
+                         relevant_booking = b
+                         break
+                else:
+                    # No time specified, if ANY booking exists, mark as Booked?
+                    # Or maybe "Partially Booked"? 
+                    # For now, to be safe and simple: If no time provided, show Booked if any booking exists.
+                    is_conflict = True
+                    relevant_booking = b
+                    break
+            
+            if is_conflict:
+                status = "Booked"
+                if relevant_booking:
+                    booked_by = relevant_booking.user.name
+                    start_time = relevant_booking.start_time
+                    end_time = relevant_booking.end_time
             
         result.append({
             "id": desk.id,
             "desk_code": desk.desk_code,
             "location": desk.location,
+            "block": desk.block,
+            "row": desk.row,
+            "col": desk.col,
             "status": status,
             "booked_by": booked_by,
             "date": target_date.strftime("%Y-%m-%d"),

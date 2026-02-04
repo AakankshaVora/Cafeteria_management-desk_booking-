@@ -17,8 +17,35 @@ def get_menu():
     
     if query_param:
         query = query.filter(MenuItem.name.ilike(f"%{query_param}%"))
-        
-    menu_items = query.all()
+    
+    # SPECIAL ITEM EXPIRY (24 HOURS RULE)
+    # Mark certain menu items as "special" -> If special item is not updated within 24 hours: Automatically remove OR deactivate it
+    # We will filter them out from the response if they are special AND older than 24h.
+    # Alternatively, we could update the DB here, but read-time filtering is safer/faster for now unless we want to persist the deactivation.
+    # Requirement: "Automatically remove OR deactivate it"
+    # Let's deactivate (is_special=False) on read if expired.
+    
+    from datetime import datetime, timedelta
+    cutoff_time = datetime.now() - timedelta(hours=24)
+    
+    # Get all potential items
+    all_items = query.all()
+    menu_items = []
+    
+    for item in all_items:
+        if item.is_special and item.updated_at and item.updated_at.replace(tzinfo=None) < cutoff_time:
+             # Expired special
+             # We can treat it as no longer special, or if it was ONLY temporary, maybe remove avail?
+             # Requirement: "Autoremove OR deactivate". Let's removing "is_special" flag.
+             # We won't commit this change to DB on every GET to avoid write locks, 
+             # but we will return it as NOT special.
+             item.is_special = False
+             # If it was a "special item" meaning created just for this, maybe we should hide it?
+             # "Show special items distinctly". 
+             # Let's assume it reverts to normal menu item or just loses special status.
+             # If requirement implies removing from menu: "Remove expired items automatically from UI"
+             # Let's just unset is_special in the response.
+        menu_items.append(item)
     db.close()
 
     result = []

@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import DashboardLayout from "../../layouts/DashboardLayout.jsx";
 import { Card } from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
-import { ShoppingBag, Plus, Minus, ArrowLeft } from "lucide-react";
+import { ShoppingBag, Plus, Minus, ArrowLeft, Clock } from "lucide-react";
 import api from "../../services/api";
 
 const OrderFood = () => {
@@ -13,6 +13,7 @@ const OrderFood = () => {
   const [foodItems, setFoodItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -64,12 +65,23 @@ const OrderFood = () => {
       return;
     }
 
+    // Validate Scheduled Time
+    if (scheduledTime) {
+      const scheduled = new Date(scheduledTime);
+      const now = new Date();
+      if (scheduled < now) {
+        toast.error("Scheduled time cannot be in the past");
+        return;
+      }
+    }
+
     try {
       await api.post("/orders", {
         items,
-        total_amount: totalAmount
+        total_amount: totalAmount,
+        scheduled_time: scheduledTime ? new Date(scheduledTime).toISOString() : null
       });
-      toast.success("Order placed successfully");
+      toast.success(scheduledTime ? "Order scheduled successfully" : "Order placed successfully");
       navigate("/employee");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to place order");
@@ -90,22 +102,41 @@ const OrderFood = () => {
         >
           Back to Dashboard
         </Button>
-        <h2 className="text-4xl font-bold text-gray-800 tracking-tight">
-          Order Food 🍽️
-        </h2>
-        <p className="text-lg text-gray-600 mt-2">
-          Select food items and place your order
-        </p>
+        <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
+          <div>
+            <h2 className="text-4xl font-bold text-gray-800 tracking-tight">
+              Order Food 🍽️
+            </h2>
+            <p className="text-lg text-gray-600 mt-2">
+              Select food items and place your order
+            </p>
+            {/* Search Bar */}
+            <div className="mt-6 max-w-md">
+              <input
+                type="text"
+                placeholder="Search menu..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-shadow"
+              />
+            </div>
+          </div>
 
-        {/* Search Bar */}
-        <div className="mt-6 max-w-md">
-          <input
-            type="text"
-            placeholder="Search menu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-shadow"
-          />
+          {/* Scheduling Input */}
+          <div className="bg-white/50 backdrop-blur-md p-4 rounded-xl border border-white/50 shadow-sm w-full md:w-auto">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Schedule Order (Optional)</label>
+            <div className="flex items-center gap-2">
+              <Clock className="text-indigo-600" size={20} />
+              <input
+                type="datetime-local"
+                min={new Date().toISOString().slice(0, 16)}
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                className="px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1 pl-7">Leave empty for immediate order</p>
+          </div>
         </div>
       </div>
 
@@ -140,14 +171,22 @@ const OrderFood = () => {
               </div>
             </div>
 
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={handlePlaceOrder}
-              className="w-full sm:w-auto shadow-xl shadow-indigo-200"
-            >
-              Confirm Order
-            </Button>
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              {scheduledTime && (
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-indigo-600 font-bold uppercase">Scheduled For</p>
+                  <p className="text-sm font-medium text-gray-800">{new Date(scheduledTime).toLocaleString()}</p>
+                </div>
+              )}
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={handlePlaceOrder}
+                className="w-full sm:w-auto shadow-xl shadow-indigo-200"
+              >
+                {scheduledTime ? "Schedule Order" : "Confirm Order"}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -161,12 +200,19 @@ export default OrderFood;
 /* ===================== FOOD CARD ===================== */
 
 const FoodCard = ({ item, qty, onAdd, onRemove }) => (
-  <Card className="flex flex-col h-full hover:scale-[1.02] transition-transform duration-300">
+  <Card className={`flex flex-col h-full hover:scale-[1.02] transition-transform duration-300 ${item.is_special ? 'ring-2 ring-yellow-400 bg-yellow-50/30' : ''}`}>
     <div className="flex-1">
       <div className="flex justify-between items-start">
-        <h3 className="text-xl font-bold text-gray-800 mb-2">
-          {item.name}
-        </h3>
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 mb-2">
+            {item.name}
+          </h3>
+          {item.is_special && (
+            <span className="inline-block px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-700 text-xs font-bold mb-2 tracking-wide border border-yellow-200">
+              ⭐ Today's Special
+            </span>
+          )}
+        </div>
         <span className="text-lg font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
           ₹{item.price}
         </span>
