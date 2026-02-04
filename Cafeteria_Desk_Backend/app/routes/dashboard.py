@@ -135,3 +135,102 @@ def get_daily_summary():
         "pending_orders_count": pending_orders_count,
         "special_dish": special_dish
     }), 200
+
+
+@dashboard_bp.route("/admin-stats", methods=["GET"])
+@jwt_required()
+def get_admin_dashboard_stats():
+    from flask import request
+    from flask_jwt_extended import get_jwt
+    from datetime import date, datetime
+    from sqlalchemy import func, cast, Date, desc
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+    from app.models.menu_item import MenuItem
+
+    claims = get_jwt()
+    if claims.get("role") != "cafeteria_admin":
+        return jsonify({"message": "Admin access required"}), 403
+
+    db = SessionLocal()
+    
+    # Date Filter (Default: Today)
+    date_str = request.args.get("date")
+    target_date = date.today()
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass # Fallback to today
+
+    # 1. Basic Counts (For the Widgets)
+    # Total Orders
+    total_orders = db.query(Order).filter(
+        cast(Order.created_at, Date) == target_date
+    ).count()
+
+    # Total Revenue (Only completed or all? Usually all non-cancelled)
+    revenue = db.query(func.sum(Order.total_amount)).filter(
+        cast(Order.created_at, Date) == target_date,
+        Order.status != 'cancelled'
+    ).scalar() or 0
+
+    # Completed Orders
+    completed_orders = db.query(Order).filter(
+        cast(Order.created_at, Date) == target_date,
+        Order.status == 'completed'
+    ).count()
+
+    # Cancelled Orders
+    cancelled_orders = db.query(Order).filter(
+        cast(Order.created_at, Date) == target_date,
+        Order.status == 'cancelled'
+    ).count()
+
+    # Avg Order Value
+    avg_order_value = 0
+    if (total_orders - cancelled_orders) > 0:
+        avg_order_value = revenue / (total_orders - cancelled_orders)
+
+    # 3. Top Selling Items
+    # Join OrderItem -> Order (to filter by date) -> MenuItem (to get name)
+    top_items_query = db.query(
+        MenuItem.name,
+        func.sum(OrderItem.quantity).label('total_qty'),
+        func.sum(OrderItem.price * OrderItem.quantity).label('total_rev')
+    ).join(Order, Order.id == OrderItem.order_id)\
+     .join(MenuItem, MenuItem.id == OrderItem.menu_item_id)\
+     .filter(
+         cast(Order.created_at, Date) == target_date,
+         Order.status != 'cancelled'
+     ).group_by(MenuItem.name)\
+     .order_by(desc('total_qty'))\
+     .limit(5).all()
+
+    top_items = []
+    total_items_sold = sum([item.total_qty for item in top_items_query])
+    
+    for name, qty, rev in top_items_query:
+        pct = 0
+        if total_items_sold > 0:
+            pct = round((qty / total_items_sold) * 100, 1)
+        
+        top_items.append({
+            "name": name,
+            "qty": qty,
+            "revenue": f"{rev:,.0f}",
+            "percentage": f"{pct}%"
+        })
+
+    db.close()
+
+    return jsonify({
+        "widgets": {
+            "total_orders": total_orders,
+            "revenue": f"{revenue:,.0f}", # Format with commas
+            "completed": completed_orders,
+            "cancelled": cancelled_orders,
+            "avg_value": f"{avg_order_value:,.0f}"
+        },
+        "top_items": top_items
+    }), 200

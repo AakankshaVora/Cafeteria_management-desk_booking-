@@ -4,7 +4,6 @@ import Topbar from "../../components/Topbar";
 import {
     ArrowLeft,
     Calendar,
-    Download,
     Star,
     TrendingUp,
     ShoppingBag,
@@ -15,6 +14,7 @@ import {
     Eye
 } from "lucide-react";
 import Button from "../../components/ui/Button";
+import api from "../../services/api";
 import { Input, Select } from "../../components/ui/Input";
 import { TableContainer, Thead, Tbody, Tr, Th, Td } from "../../components/ui/Table";
 import Modal from "../../components/ui/Modal";
@@ -25,32 +25,55 @@ const DailySummaryReviews = () => {
     const [feedbackFilter, setFeedbackFilter] = useState("All");
     const [showModal, setShowModal] = useState(false);
     const [selectedFeedback, setSelectedFeedback] = useState(null);
+    const [loading, setLoading] = useState(false);
 
-    // Mock Data Definition
+    // State for Dynamic Data
+    const [widgetsData, setWidgetsData] = useState({
+        total_orders: 0, revenue: "0", completed: 0, cancelled: 0, avg_value: "0"
+    });
+    const [topSellingItems, setTopSellingItems] = useState([]);
+    const [allReviews, setAllReviews] = useState([]);
+    const [reviewStats, setReviewStats] = useState({ avg: 0, total: 0 });
+
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        try {
+            // 1. Fetch Stats
+            const statsRes = await api.get(`/dashboard/admin-stats?date=${selectedDate}`);
+            setWidgetsData(statsRes.data.widgets);
+            setTopSellingItems(statsRes.data.top_items);
+
+            // 2. Fetch Reviews (Reviews are global for now, filtering by date in UI if needed, or backend could support it)
+            // For now, we fetch all reviews to show the robust list.
+            const reviewsRes = await api.get("/reviews/all");
+            setAllReviews(reviewsRes.data.reviews);
+            setReviewStats({
+                avg: reviewsRes.data.average_rating,
+                total: reviewsRes.data.total_reviews
+            });
+
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Initial Load
+    React.useEffect(() => {
+        fetchDashboardData();
+    }, []); // Run once on mount
+
+    // Definition mapped to state
     const widgets = [
-        { title: "Total Orders", value: "312", icon: <ShoppingBag className="w-6 h-6 text-blue-600" />, bg: "bg-blue-100" },
-        { title: "Total Revenue", value: "₹45,280", icon: <TrendingUp className="w-6 h-6 text-green-600" />, bg: "bg-green-100" },
-        { title: "Completed Orders", value: "298", icon: <CheckCircle2 className="w-6 h-6 text-emerald-600" />, bg: "bg-emerald-100" },
-        { title: "Cancelled Orders", value: "14", icon: <AlertCircle className="w-6 h-6 text-red-600" />, bg: "bg-red-100" },
-        { title: "Avg Order Value", value: "₹145", icon: <Target className="w-6 h-6 text-purple-600" />, bg: "bg-purple-100" },
-        { title: "Peak Hour", value: "01:00 PM", icon: <Calendar className="w-6 h-6 text-orange-600" />, bg: "bg-orange-100" },
+        { title: "Total Orders", value: widgetsData.total_orders, icon: <ShoppingBag className="w-6 h-6 text-blue-600" />, bg: "bg-blue-100" },
+        { title: "Total Revenue", value: `₹${widgetsData.revenue}`, icon: <TrendingUp className="w-6 h-6 text-green-600" />, bg: "bg-green-100" },
+        { title: "Completed Orders", value: widgetsData.completed, icon: <CheckCircle2 className="w-6 h-6 text-emerald-600" />, bg: "bg-emerald-100" },
+        { title: "Cancelled Orders", value: widgetsData.cancelled, icon: <AlertCircle className="w-6 h-6 text-red-600" />, bg: "bg-red-100" },
+        { title: "Avg Order Value", value: `₹${widgetsData.avg_value}`, icon: <Target className="w-6 h-6 text-purple-600" />, bg: "bg-purple-100" },
     ];
 
-    const topSellingItems = [
-        { name: "Veg Deluxe Thali", qty: 120, revenue: "18,000", percentage: "35%" },
-        { name: "Chicken Biryani", qty: 95, revenue: "14,250", percentage: "28%" },
-        { name: "Masala Dosa", qty: 45, revenue: "3,150", percentage: "12%" },
-        { name: "Paneer Butter Masala", qty: 30, revenue: "5,400", percentage: "10%" },
-        { name: "Cold Coffee", qty: 22, revenue: "2,200", percentage: "5%" },
-    ];
-
-    const feedbackData = [
-        { id: 1, name: "Alice Johnson", date: "2023-10-27 12:30 PM", rating: 5, feedback: "Excellent food and quick service! Loved the thali.", type: "Positive" },
-        { id: 2, name: "Bob Smith", date: "2023-10-27 01:15 PM", rating: 2, feedback: "The coffee was cold and took too long to arrive.", type: "Negative" },
-        { id: 3, name: "Charlie Davis", date: "2023-10-27 01:45 PM", rating: 4, feedback: "Good taste, but portion size could be a bit better.", type: "Positive" },
-        { id: 4, name: "Dana White", date: "2023-10-27 02:20 PM", rating: 3, feedback: "It was okay. Nothing special.", type: "Positive" }, // Neutral treated as positive/mixed for simplicity or just 'All'
-        { id: 5, name: "Evan Wright", date: "2023-10-27 08:10 PM", rating: 1, feedback: "Completely messed up my order.", type: "Negative" },
-    ];
+    const feedbackData = allReviews; // Use fetched reviews
 
     const filteredFeedback = feedbackFilter === "All"
         ? feedbackData
@@ -67,13 +90,10 @@ const DailySummaryReviews = () => {
     };
 
     const handleLoadData = () => {
-        // Mock load effect
-        console.log("Loading data for date:", selectedDate);
+        fetchDashboardData();
     };
 
-    const handleExport = () => {
-        alert("Exporting report for " + selectedDate);
-    };
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-sky-50 to-violet-50 pb-12">
@@ -101,7 +121,7 @@ const DailySummaryReviews = () => {
                 </div>
 
                 {/* Widgets Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                     {widgets.map((widget, index) => (
                         <div key={index} className="bg-white/80 backdrop-blur-xl p-5 rounded-2xl shadow-sm border border-white/50 hover:shadow-md transition">
                             <div className={`p-3 rounded-xl w-fit mb-3 ${widget.bg}`}>
@@ -224,38 +244,23 @@ const DailySummaryReviews = () => {
                 <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-[2rem] shadow-xl p-8 text-white text-center">
                     <h2 className="text-2xl font-bold mb-2">Average Rating</h2>
                     <div className="flex justify-center items-center gap-2 mb-2">
-                        <span className="text-5xl font-extrabold">4.2</span>
+                        <span className="text-5xl font-extrabold">{reviewStats.avg}</span>
                         <span className="text-2xl text-indigo-200">/ 5.0</span>
                     </div>
                     <div className="flex justify-center gap-1 mb-4 text-yellow-300">
-                        <Star size={32} fill="currentColor" />
-                        <Star size={32} fill="currentColor" />
-                        <Star size={32} fill="currentColor" />
-                        <Star size={32} fill="currentColor" />
-                        <Star size={32} fill="transparent" stroke="currentColor" />
+                        {Array(5).fill(0).map((_, i) => (
+                            <Star
+                                key={i}
+                                size={32}
+                                fill={i < Math.round(reviewStats.avg) ? "currentColor" : "transparent"}
+                                stroke={i < Math.round(reviewStats.avg) ? "none" : "currentColor"}
+                            />
+                        ))}
                     </div>
-                    <p className="text-indigo-100 opacity-90">Based on 145 reviews today</p>
+                    <p className="text-indigo-100 opacity-90">Based on {reviewStats.total} reviews</p>
                 </div>
 
-                {/* Bottom Actions */}
-                <div className="flex flex-wrap justify-end gap-4 pt-4">
-                    <Button
-                        variant="secondary"
-                        onClick={() => navigate('/cafeteria')}
-                        size="lg"
-                    >
-                        Back to Dashboard
-                    </Button>
-                    <Button
-                        variant="primary"
-                        onClick={handleExport}
-                        icon={Download}
-                        size="lg"
-                        className="bg-gray-900 hover:bg-gray-800 shadow-gray-400"
-                    >
-                        Export Report
-                    </Button>
-                </div>
+
 
             </div>
 

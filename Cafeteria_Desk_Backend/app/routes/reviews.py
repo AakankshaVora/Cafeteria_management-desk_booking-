@@ -53,3 +53,48 @@ def get_my_reviews():
     db.close()
     
     return jsonify(result), 200
+
+
+@reviews_bp.route("/all", methods=["GET"])
+@jwt_required()
+def get_all_reviews():
+    claims = get_jwt()
+    if claims.get("role") != "cafeteria_admin":
+        return jsonify({"message": "Admin access required"}), 403
+
+    db = SessionLocal()
+    
+    # Fetch all reviews with user details
+    reviews = db.query(Review).join(User).order_by(Review.created_at.desc()).all()
+    
+    result = []
+    total_rating = 0
+    count = 0 
+    
+    for r in reviews:
+        total_rating += r.rating
+        count += 1
+        
+        # Simple sentiment logic for 'type'
+        fb_type = "Positive" if r.rating >= 4 else ("Negative" if r.rating <= 2 else "Neutral")
+        
+        result.append({
+            "id": r.id,
+            "name": r.user.name,
+            "date": r.created_at.strftime("%Y-%m-%d %I:%M %p"),
+            "rating": r.rating,
+            "feedback": r.feedback,
+            "type": fb_type
+        })
+        
+    avg_rating = 0.0
+    if count > 0:
+        avg_rating = round(total_rating / count, 1)
+
+    db.close()
+    
+    return jsonify({
+        "reviews": result,
+        "average_rating": avg_rating,
+        "total_reviews": count
+    }), 200
