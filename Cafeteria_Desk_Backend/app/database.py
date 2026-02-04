@@ -7,7 +7,7 @@ from app.config import DATABASE_URL
 # Create database engine (now PostgreSQL)
 engine = create_engine(
     DATABASE_URL,
-    echo=True   # shows SQL queries in terminal (very useful for debugging)
+    echo=False   # shows SQL queries in terminal (very useful for debugging)
 )
 
 # Create session factory

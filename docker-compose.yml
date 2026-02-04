@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: cafeteria_db_container
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - cafeteria_network
+
+  backend:
+    build: ./Cafeteria_Desk_Backend
+    container_name: cafeteria_backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    depends_on:
+      - postgres
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./Cafeteria_Desk_Backend:/app
+    networks:
+      - cafeteria_network
+
+  frontend:
+    build: ./Cafeteria_Desk_Frontend
+    container_name: cafeteria_frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Cafeteria_Desk_Frontend:/app
+      - /app/node_modules
+    networks:
+      - cafeteria_network
+
+networks:
+  cafeteria_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

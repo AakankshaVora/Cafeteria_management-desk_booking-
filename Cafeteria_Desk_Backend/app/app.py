@@ -29,14 +29,14 @@ from app.routes.dashboard import dashboard_bp
 
 def create_app():
     app = Flask(__name__)
-    CORS(app, resources={r"/*": {"origins": ["http://localhost:5176", "http://127.0.0.1:5176", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:5175", "http://127.0.0.1:5175"]}}, supports_credentials=True, allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    CORS(app, resources={r"/*": {"origins": "*"}}, allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
     # 🔐 JWT CONFIG
     app.config["JWT_SECRET_KEY"] = SECRET_KEY
     jwt = JWTManager(app)
 
     # 🗄️ CREATE DATABASE TABLES
-    # Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
 
     # 🔄 MIGRATIONS
     Migrate(app, Base)
