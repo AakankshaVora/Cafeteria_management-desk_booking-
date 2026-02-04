@@ -10,8 +10,10 @@ This full-stack application provides the following key features:
     -   Employees can browse the menu, filter items, and place food orders.
     -   Cafeteria Admins can manage menu items (add/update/delete/specials) and process orders (update status).
 -   **Desk Booking**:
-    -   Employees can view available desks and book them for specific dates.
-    -   Desk Admins can manage desk inventory and view all bookings.
+    -   **Visual Desk Map**: Employees can view available desks in a theater-style interactive layout.
+    -   **Time-Based Booking**: Bookings are restricted to business hours (9 AM - 7 PM) with overlap validation.
+    -   **Desk Inventory**: Admins can manage desk status (Available/Maintenance) and cancel bookings.
+    -   **Filtering**: Admins can view live availability filtered by date and time range.
 -   **Dashboard**:
     -   Daily summaries of orders and bookings.
     -   Visual statistics for admins (revenue, item demand, desk utilization).
@@ -98,7 +100,7 @@ This is the easiest way to run the full stack (Frontend + Backend + Database).
 ### Menu Management
 | Method | Endpoint | Description | Auth |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/menu` | Get all menu items (support `?q=` search) | User |
+| `GET` | `/menu` | Get all menu items (search support: `?q=`) | User |
 | `POST` | `/menu` | Add new menu item | Admin |
 | `PUT` | `/menu/update/<id>` | Update menu item | Admin |
 | `DELETE` | `/menu/delete/<id>` | Delete menu item | Admin |
@@ -107,20 +109,22 @@ This is the easiest way to run the full stack (Frontend + Backend + Database).
 ### Order Management
 | Method | Endpoint | Description | Auth |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/orders` | Place a food order | Employee |
-| `GET` | `/orders/my` | View my orders | Employee |
-| `GET` | `/orders` | View all orders | Admin |
-| `PUT` | `/orders/<id>/status` | Update order status (pending/completed) | Admin |
+| `POST` | `/orders` | Place a food order (supports `scheduled_time`) | Employee |
+| `GET` | `/orders/my` | View my orders (includes scheduled time) | Employee |
+| `GET` | `/orders` | View all orders (filterable by date/status) | Admin |
+| `PUT` | `/orders/<id>/status` | Update order status | Admin |
 | `GET` | `/orders/stats` | View daily order statistics | Admin |
 
 ### Desk Booking
 | Method | Endpoint | Description | Auth |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/desks` | View all desks and availability | User |
-| `POST` | `/desk-bookings` | Book a desk | Employee |
+| `GET` | `/desks` | View desks (filters: `date`, `start_time`, `end_time`) | User |
+| `POST` | `/desk-bookings` | Book a desk (req: `date`, `start`, `end`) | Employee |
 | `GET` | `/desk-bookings/my` | View my bookings | Employee |
-| `GET` | `/desk-bookings/all` | View all bookings | Admin |
-| `DELETE` | `/desk-bookings/<id>` | Cancel specific booking | User/Admin |
+| `GET` | `/desk-bookings/all` | View all bookings (Admin) | Admin |
+| `DELETE` | `/desk-bookings/<id>` | Cancel booking | User/Admin |
+| `PUT` | `/desk-bookings/<id>/cancel` | Cancel booking (Status update) | User/Admin |
+| `PUT` | `/desks/<id>/status` | Update Desk Status (Available/Maintenance) | Admin |
 
 ---
 
@@ -155,6 +159,7 @@ erDiagram
         float price
         boolean is_available
         boolean is_special
+        datetime updated_at
     }
 
     ORDERS {
@@ -163,6 +168,7 @@ erDiagram
         float total_amount
         string status
         datetime created_at
+        datetime scheduled_time
     }
 
     ORDER_ITEMS {
@@ -178,6 +184,9 @@ erDiagram
         string desk_code
         string location
         string status
+        string block
+        int row
+        int col
     }
 
     DESK_BOOKINGS {
@@ -185,6 +194,8 @@ erDiagram
         int user_id FK
         int desk_id FK
         date booking_date
+        string start_time
+        string end_time
         string status
     }
 ```
